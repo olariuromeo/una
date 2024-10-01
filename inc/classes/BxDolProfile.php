@@ -206,7 +206,7 @@ class BxDolProfile extends BxDolFactory implements iBxDolProfile
             if(BxDolRequest::serviceExists($sModuleNotifications, 'get_unread_notifications_num'))
                 $aRv['notifications'] = bx_srv($sModuleNotifications, 'get_unread_notifications_num', [$iId]);
 
-            if($o !== false && BxDolAccount::isAllowedCreateMultiple($iId)) {
+            if($oProfile !== false && BxDolAccount::isAllowedCreateMultiple($iId)) {
                 $oAccount = BxDolAccount::getInstance();
                 if($oAccount != false && !$oAccount->isProfilesLimitReached()) {
                     $oMenuProfileAdd = BxDolMenu::getObjectInstance('sys_add_profile');
@@ -216,7 +216,8 @@ class BxDolProfile extends BxDolFactory implements iBxDolProfile
             }
         }
 
-
+        bx_alert('system', 'get_profile_for_page_api', 0, 0, ['override_result' => &$aRv]);
+        
         return $aRv;
     }
 

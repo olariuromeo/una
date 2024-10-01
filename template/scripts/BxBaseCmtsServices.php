@@ -29,7 +29,39 @@ class BxBaseCmtsServices extends BxDol
 
         return $oCmts->serviceGetAuthor((int)$aCmt['cmt_id']);
     }
-    
+
+    public function serviceGetBlockContent($sSystem = '', $iObjectId = 0, $iCommentId = 0)
+    {
+        $bIsApi = bx_is_api();
+
+        if(empty($sSystem) && ($sSystem = bx_get('sys')) !== false)
+            $sSystem = bx_process_input($sSystem);
+
+        if(empty($iObjectId) && ($iObjectId = bx_get('id')) !== false)
+            $iObjectId = bx_process_input($iObjectId, BX_DATA_INT);
+
+        if(empty($iCommentId) && ($iCommentId = bx_get('cmt_id')) !== false)
+            $iCommentId = bx_process_input($iCommentId, BX_DATA_INT);
+
+        $oCmts = BxDolCmts::getObjectInstance($sSystem, $iObjectId, true);
+        if(!$oCmts || !$oCmts->isEnabled())
+            return $bIsApi ? [] : '';
+
+        if($bIsApi) {
+            $aSystem = $oCmts->getSystemInfo();
+
+            return [bx_api_get_block('comment_content', [
+                'author' => $oCmts->getObjectAuthorId(),
+                'module' => $aSystem['module'],
+                'title' => bx_is_srv($aSystem['module'], 'get_title') ?  bx_srv($aSystem['module'], 'get_title', [$iObjectId]) : '',
+                'text' => bx_is_srv($aSystem['module'], 'get_text') ?  bx_srv($aSystem['module'], 'get_text', [$iObjectId]) : '',
+                'link' => bx_api_get_relative_url($oCmts->getBaseUrl())
+            ])];
+        }
+
+        return '';
+    }
+
     public function serviceGetBlockAuthor($sSystem = '', $iObjectId = 0, $iCommentId = 0)
     {
         if(empty($sSystem) && ($sSystem = bx_get('sys')) !== false)
@@ -656,22 +688,23 @@ class BxBaseCmtsServices extends BxDol
             $aCmts = array_slice($aCmts, 0, $aBp['per_view']); 
             $aParams['start_from'] = $aBp['start'] + $aBp['per_view'];
         }
+
         $aCmtsRv = [];
         foreach ($aCmts as $aCmt) {
             $aBp['order_way'] = 'asc';
-            $oCmt = $oCmts->getCommentStructure($aCmt['cmt_id'], $aBp, $aDp);
-            if($oCmt === false)
+            $aCmts = $oCmts->getCommentStructure($aCmt['cmt_id'], $aBp, $aDp);
+            if($aCmts === false)
                 continue;
 
-            if(($sKey = array_shift(array_keys($oCmt))) && $oCmt[$sKey]['data']['cmt_parent_id'] > 0){
-                $aParent = $oCmts->getCommentSimple((int)$oCmt[$sKey]['data']['cmt_parent_id']);
-                $oCmt[$sKey]['data']['cmt_parent'] = [
+            if(($aKeys = array_keys($aCmts)) && ($sKey = array_shift($aKeys)) && $aCmts[$sKey]['data']['cmt_parent_id'] > 0) {
+                $aParent = $oCmts->getCommentSimple((int)$aCmts[$sKey]['data']['cmt_parent_id']);
+                $aCmts[$sKey]['data']['cmt_parent'] = [
                     'data' => $aParent,
                     'author_data' => BxDolProfile::getData($aParent['cmt_author_id'])
                 ];
             }
 
-            $aCmtsRv[] = $oCmt;
+            $aCmtsRv[] = $aCmts;
         }
         
         $aData = [

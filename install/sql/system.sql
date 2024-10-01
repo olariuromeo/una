@@ -649,7 +649,9 @@ INSERT INTO `sys_options`(`category_id`, `name`, `caption`, `value`, `type`, `ex
 (@iCategoryId, 'sys_account_accounts_force_password_change_after_expiration', '_adm_stg_cpt_option_sys_accounts_force_password_change_after_expiration', '', 'checkbox', '', '', '', 58),
 
 (@iCategoryId, 'sys_account_switch_to_profile_redirect', '_adm_stg_cpt_option_sys_account_switch_to_profile_redirect', 'back', 'select', 'a:3:{s:6:"module";s:6:"system";s:6:"method";s:38:"get_options_switch_to_profile_redirect";s:5:"class";s:18:"BaseServiceAccount";}', '', '', 60),
-(@iCategoryId, 'sys_account_switch_to_profile_redirect_custom', '_adm_stg_cpt_option_sys_account_switch_to_profile_redirect_custom', '', 'digit', '', '', '', 61);
+(@iCategoryId, 'sys_account_switch_to_profile_redirect_custom', '_adm_stg_cpt_option_sys_account_switch_to_profile_redirect_custom', '', 'digit', '', '', '', 61),
+
+(@iCategoryId, 'sys_account_remember_me', '_adm_stg_cpt_option_sys_account_remember_me', 'on', 'checkbox', '', '', '', 70);
 --
 -- CATEGORY: ACL
 --
@@ -844,7 +846,9 @@ SET @iCategoryId = LAST_INSERT_ID();
 INSERT INTO `sys_options`(`category_id`, `name`, `caption`, `value`, `type`, `extra`, `check`, `check_error`, `order`) VALUES
 (@iCategoryId, 'sys_agents_asst_chats_trans_del', '_adm_stg_cpt_option_sys_agents_asst_chats_trans_del', 'on', 'checkbox', '', '', '', 1),
 (@iCategoryId, 'sys_agents_studio_assistant', '_adm_stg_cpt_option_sys_agents_sa', '', 'select', 'a:3:{s:6:"module";s:6:"system";s:6:"method";s:28:"get_options_studio_assistant";s:5:"class";s:13:"TemplServices";}', '', '', 10),
-(@iCategoryId, 'sys_agents_live_search_assistant', '_adm_stg_cpt_option_sys_agents_lsa', '', 'select', 'a:3:{s:6:"module";s:6:"system";s:6:"method";s:33:"get_options_live_search_assistant";s:5:"class";s:13:"TemplServices";}', '', '', 15);
+(@iCategoryId, 'sys_agents_live_search_assistant', '_adm_stg_cpt_option_sys_agents_lsa', '', 'select', 'a:3:{s:6:"module";s:6:"system";s:6:"method";s:33:"get_options_live_search_assistant";s:5:"class";s:13:"TemplServices";}', '', '', 15),
+(@iCategoryId, 'sys_agents_ask_block_assistant', '_adm_stg_cpt_option_sys_agents_aba', '', 'select', 'a:3:{s:6:"module";s:6:"system";s:6:"method";s:31:"get_options_ask_block_assistant";s:5:"class";s:13:"TemplServices";}', '', '', 20);
+
 
 --
 -- Table structure for table `sys_options_mixes`
@@ -1366,6 +1370,7 @@ CREATE TABLE `sys_accounts` (
   `receive_updates` tinyint(4) NOT NULL DEFAULT '1',
   `receive_news` tinyint(4) NOT NULL DEFAULT '1',
   `password` varchar(40) NOT NULL,
+  `password_changed` int(11) NOT NULL DEFAULT '0',
   `salt` varchar(10) NOT NULL,
   `role` tinyint(4) NOT NULL DEFAULT '1',
   `lang_id` int(10) unsigned NOT NULL DEFAULT '0',
@@ -1376,7 +1381,6 @@ CREATE TABLE `sys_accounts` (
   `referred` varchar(255) NOT NULL DEFAULT '',
   `login_attempts` tinyint(4) NOT NULL DEFAULT '0',
   `locked` tinyint(4) NOT NULL DEFAULT '0',
-  `password_expired` int(11) NOT NULL DEFAULT '0',
   `active` int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`(191)),
@@ -6002,7 +6006,9 @@ INSERT INTO `sys_pages_blocks` (`object`, `cell_id`, `module`, `title_system`, `
 ('', 0, 'system', '_sys_page_block_title_sys_author', '_sys_page_block_title_author', 3, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:16:"get_block_author";s:6:"params";a:2:{i:0;s:8:"{module}";i:1;s:4:"{id}";}s:5:"class";s:13:"TemplServices";}', 0, 1, 1, @iBlockOrder + 5),
 
 ('', 0, 'system', '_sys_page_block_title_sys_recom_friends', '_sys_page_block_title_recom_friends', 11, 1, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:30:"browse_recommendations_friends";s:6:"params";a:0:{}s:5:"class";s:20:"TemplServiceProfiles";}', 0, 1, 1, @iBlockOrder + 6),
-('', 0, 'system', '_sys_page_block_title_sys_recom_subscriptions', '_sys_page_block_title_recom_subscriptions', 11, 1, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:36:"browse_recommendations_subscriptions";s:6:"params";a:0:{}s:5:"class";s:20:"TemplServiceProfiles";}', 0, 1, 1, @iBlockOrder + 6);
+('', 0, 'system', '_sys_page_block_title_sys_recom_subscriptions', '_sys_page_block_title_recom_subscriptions', 11, 1, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:36:"browse_recommendations_subscriptions";s:6:"params";a:0:{}s:5:"class";s:20:"TemplServiceProfiles";}', 0, 1, 1, @iBlockOrder + 7),
+
+('', 0, 'system', '_sys_page_block_title_sys_ask_aqssistant', '_sys_page_block_title_ask_aqssistant', 11, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:23:"get_block_ask_assistant";s:6:"params";a:1:{i:0;a:0:{}}s:5:"class";s:13:"TemplServices";}', 0, 1, 1, @iBlockOrder + 8);
 
 -- content blocks
 INSERT INTO `sys_pages_blocks` (`object`, `cell_id`, `module`, `title_system`, `title`, `designbox_id`, `tabs`, `async`, `visible_for_levels`, `type`, `content`, `deletable`, `copyable`, `active`, `order`) VALUES
@@ -6114,6 +6120,7 @@ INSERT INTO `sys_pages_blocks` (`object`, `cell_id`, `module`, `title_system`, `
 ('sys_std_dashboard', 2, 'system', '', '_sys_page_block_title_std_dash_queues', 11, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:16:"get_block_queues";s:6:"params";a:0:{}s:5:"class";s:20:"TemplStudioDashboard";}', 0, 0, 1, 3);
 
 INSERT INTO `sys_pages_blocks` (`object`, `cell_id`, `module`, `title_system`, `title`, `designbox_id`, `tabs`, `async`, `visible_for_levels`, `type`, `content`, `deletable`, `copyable`, `active`, `active_api`, `order`) VALUES
+('sys_cmts_view', 1, 'system', '_sys_page_block_title_system_cmts_view_content', '_cmt_page_view_title_content', 11, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:17:"get_block_content";s:6:"params";a:3:{i:0;s:8:"{system}";i:1;s:11:"{object_id}";i:2;s:12:"{comment_id}";}s:5:"class";s:17:"TemplCmtsServices";}', 0, 0, 1, 1, 0),
 ('sys_cmts_view', 1, 'system', '_sys_page_block_title_system_cmts_view_author', '_cmt_page_view_title_author', 11, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:16:"get_block_author";s:6:"params";a:3:{i:0;s:8:"{system}";i:1;s:11:"{object_id}";i:2;s:12:"{comment_id}";}s:5:"class";s:17:"TemplCmtsServices";}', 0, 0, 0, 1, 1),
 ('sys_cmts_view', 1, 'system', '_sys_page_block_title_system_cmts_view', '_cmt_page_view_title', 11, 0, 0, 2147483647, 'service', 'a:4:{s:6:"module";s:6:"system";s:6:"method";s:14:"get_block_view";s:6:"params";a:3:{i:0;s:8:"{system}";i:1;s:11:"{object_id}";i:2;s:12:"{comment_id}";}s:5:"class";s:17:"TemplCmtsServices";}', 0, 0, 1, 1, 2);
 

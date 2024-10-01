@@ -365,7 +365,7 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
     {
         $oModule = $this->getModule();
 
-        if(bx_is_api()) {
+        if($this->_bIsApi) {
             if(defined('BX_API_PAGE'))
                 return [];
 
@@ -376,11 +376,14 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
             $oMenuManage = BxDolMenu::getObjectInstance($this->_oConfig->getObject('menu_item_manage'));
 
             $aPosts = $this->getPosts(array_merge($aParams, ['return_data_type' => 'array']));
-            foreach($aPosts as &$aPost)
-                $aPost = $this->_getPostApi($aPost, $aParams, [
+            foreach($aPosts as &$aPost) {
+                $aPost = array_merge($aPost, [
                     'menu_actions' => $oMenuActions,
                     'menu_manage' => $oMenuManage
                 ]);
+
+                $aPost = $this->_getPostApi($aPost, $aParams);
+            }
 
             return $aPosts;
         }
@@ -805,6 +808,11 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
 
         self::$_aMemoryCacheItems[$sMemoryCacheItemsKey] = $this->_getPost($aEvent['content_type'], $aEvent, $aBrowseParams);
         return self::$_aMemoryCacheItems[$sMemoryCacheItemsKey];
+    }
+
+    public function getPostApi($aEvent, $aParams = [])
+    {
+        return $this->_getPostApi($aEvent, $aParams);
     }
 
     public function getPosts($aParams)
@@ -1978,7 +1986,7 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
         return $this->parseHtmlByContent($sTmplCode, $aTmplVars);
     }
 
-    public function _getPostApi(&$aEvent, $aParams = [], $aEventAdd = [])
+    protected function _getPostApi(&$aEvent, $aParams = [])
     {
         $oModule = $this->getModule();
         $bViewItem = isset($aParams['view']) && $aParams['view'] == BX_TIMELINE_VIEW_ITEM;
@@ -2017,34 +2025,26 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
                     $aEvent['content']['embed'] = $oEmbed->getLinkHTML(current($aEvent['content']['links'])['url']);
             }
 
-            if ($aEvent['content']['embed'] == '')
+            if (empty($aEvent['content']['embed']))
                 $aEvent['content']['embed'] = bx_linkify_embeded($aEvent['content']['text']);
         }
 
-        if(empty($aEventAdd['menu_actions'])) {
+        if(empty($aEvent['menu_actions'])) {
             $oMenuActions = BxDolMenu::getObjectInstance($this->_oConfig->getObject('menu_item_actions_all'));
             if(!$oMenuActions)
                 $oMenuActions = BxDolMenu::getObjectInstance($this->_oConfig->getObject('menu_item_actions'));
         }
         else
-            $oMenuActions = $aEventAdd['menu_actions'];
+            $oMenuActions = $aEvent['menu_actions'];
 
-        if($oMenuActions !== false) {
-            $oMenuActions->setEvent($aEvent, $aParams);
+        $aEvent['menu_actions'] = $oMenuActions !== false && $oMenuActions->setEvent($aEvent, $aParams) ? $oMenuActions->getCodeAPI() : [];
 
-            $aEvent['menu_actions'] = $oMenuActions->getCodeAPI();
-        }
-
-        if(empty($aEventAdd['menu_manage']))
+        if(empty($aEvent['menu_manage']))
             $oMenuManage = BxDolMenu::getObjectInstance($this->_oConfig->getObject('menu_item_manage'));
         else
-            $oMenuManage = $aEventAdd['menu_manage'];
+            $oMenuManage = $aEvent['menu_manage'];
 
-        if($oMenuManage !== false) {
-            $oMenuManage->setEvent($aEvent);
-
-            $aEvent['menu_manage'] = $oMenuManage->getCodeAPI();
-        }
+        $aEvent['menu_manage'] = $oMenuManage !== false && $oMenuManage->setEvent($aEvent) ? $oMenuManage->getShortCodeAPI() : [];
 
         if ($aParams['type'] != 'owner')
             $aEvent['owners'] = $this->_getTmplVarsTimelineOwner($aEvent);
@@ -2062,7 +2062,36 @@ class BxTimelineTemplate extends BxBaseModNotificationsTemplate
             $aEvent['cmts']['count'] = $aEvent['comments']['count'];
         }
 
-        return $aEvent;
+        $aEvent['content'] = array_intersect_key($aEvent['content'], array_flip([
+            'object_id', 'text', 'links', 'images_attach', 'videos_attach', 'files_attach', 'parse_type', 'owner_name', 'embed'
+        ]));
+
+        return array_intersect_key($aEvent, array_flip([
+            'id', 'type', 'object_privacy_view', 'content', 'labels', 'date', 'menu_actions', 'menu_manage', 'author_data', 'author_actions', 'url', 'owners', 'cmts'
+        ]));
+        
+        /*-- TODO: Rewrite --*/
+        $keysToCopy = ['id', 'type', 'object_privacy_view', 'content', 'labels', 'date', 'menu_actions', 'menu_manage', 'url', 'owners', 'cmts', 'author_actions','author_data'];
+
+        $aEventC = [];
+        foreach ($keysToCopy as $key) {
+            if (isset($aEvent[$key])) {
+                $aEventC[$key] = $aEvent[$key];
+            }
+        }
+        
+        $aEventCData = [];
+        $keysToCopy = ['object_id', 'text', 'links', 'images_attach', 'videos_attach', 'files_attach', 'embed', 'owner_name', 'parse_type'];
+        foreach ($keysToCopy as $key) {
+            if (isset($aEvent['content'][$key])) {
+                $aEventCData[$key] = $aEvent['content'][$key];
+            }
+        }
+        
+        unset($aEventC['content']);
+        $aEventC['content'] = $aEventCData;
+        return $aEventC;
+        /*-- TODO: Rewrite --*/
     }
 
     protected function _getContent($sType, $aEvent, $aBrowseParams = array())

@@ -727,7 +727,7 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         $aRv['form'] = ['id' => 'bx_timeline', 'type' => 'form', 'name' => 'feed_edit', 'data' => $aFrm, 'request' => ['immutable' => true]];
         $aItemData = $this->getItemData($iId);
         if(is_array($aItemData) && !empty($aItemData['event']))
-            $aRv['item'] = $this->_oTemplate->_getPostApi($aItemData['event']);
+            $aRv['item'] = $this->_oTemplate->getPostApi($aItemData['event']);
         return $aRv;
     }
 
@@ -740,67 +740,6 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         $sComments = $this->_oTemplate->getComments($sSystem, $iId, array('dynamic_mode' => true));
 
         echoJson(array('content' => $sComments));
-    }
-
-    public function actionAddAttachLink()
-    {
-        $sUrl = bx_process_input(bx_get('url'));
-        if(empty($sUrl))
-            return echoJson([]);
-        
-        $sUrl = htmlspecialchars_decode($sUrl);
-        $oStreamContext = stream_context_create([
-            'http' => [
-                'timeout' => getParam('sys_default_socket_timeout'), 
-            ]
-        ]);
-
-        $aHeaders = @get_headers($sUrl, 1, $oStreamContext);
-        if($aHeaders === false)
-            return echoJson([]);
-
-        $sHeader = 'Content-Type';
-        if(!empty($aHeaders[$sHeader])) {
-            $mixedContentType = $aHeaders[$sHeader];
-            if(!is_array($mixedContentType))
-                $mixedContentType = [$mixedContentType];
-
-            foreach($mixedContentType as $sContentType)
-                if(strpos($sContentType, 'image') !== false) 
-                    return echoJson([]);
-        }
-
-        $iEventId = 0;
-        if(bx_get('event_id') !== false)
-            $iEventId = (int)bx_get('event_id');
-
-        echoJson($this->addAttachLink([
-            'event_id' => $iEventId,
-            'url' => $sUrl
-        ]));
-    }
-
-    public function actionDeleteAttachLink()
-    {
-    	$iUserId = $this->getUserId();
-        $iLinkId = bx_process_input(bx_get('id'), BX_DATA_INT);
-        if(empty($iLinkId))
-            return echoJson([]);
-
-        $aLink = $this->_oDb->getLinksBy(['type' => 'id', 'id' => $iLinkId, 'profile_id' => $iUserId]);
-    	if(empty($aLink) || !is_array($aLink))
-            return echoJson([]);
-
-        if(!empty($aLink['media_id']))
-            BxDolStorage::getObjectInstance($this->_oConfig->getObject('storage_photos'))->deleteFile($aLink['media_id']);
-
-        $aResult = [];
-        if($this->_oDb->deleteLink($iLinkId))
-            $aResult = ['code' => 0, 'url' => $aLink['url']];
-        else
-            $aResult = ['code' => 1, 'message' => _t('_bx_timeline_form_post_input_link_err_delete')];
-
-        echoJson($aResult);
     }
 
     public function actionDeleteAttachLinks()
@@ -824,20 +763,6 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         }
 
         echoJson(['code' => 0, 'urls' => $aUrls]);
-    }
-
-    public function actionGetAttachLinkForm()
-    {
-        $iEventId = 0;
-        if(bx_get('event_id') !== false)
-            $iEventId = (int)bx_get('event_id');
-
-        echo $this->_oTemplate->getAttachLinkForm($iEventId);
-    }
-
-    public function actionSubmitAttachLinkForm()
-    {
-        echoJson($this->getFormAttachLink());
     }
 
     public function actionAutoAttachInsertion()
@@ -1558,6 +1483,33 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
             $sResult = _t($sResult);
 
         return $sResult;
+    }
+
+    /**
+     * @page service Service Calls
+     * @section bx_timeline Timeline
+     * @subsection bx_timeline-other Other
+     * @subsubsection bx_timeline-get_text get_text
+     * 
+     * @code bx_srv('bx_timeline', 'get_text', [...]); @endcode
+     * 
+     * Get content text by content ID. Is used in "Content Info Objects" system.
+     * 
+     * @param $iContentId integer value with content ID.
+     * @return an array with content info. Empty array is returned if something is wrong.
+     * 
+     * @see BxTimelineModule::serviceGetText
+     */
+    /** 
+     * @ref bx_timeline-get_text "get_text"
+     */
+    public function serviceGetText ($iContentId)
+    {
+        $sResult = parent::serviceGetText($iContentId);
+        if(!$sResult)
+            return $sResult;
+    
+        return $this->_oConfig->getDescription($sResult, $this->_getFieldValue('FIELD_OBJECT_OWNER_ID', $iContentId), '');
     }
 
     /**
@@ -2303,7 +2255,7 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         $aItemData = $this->getItemData($iItemId, $aParams);
 
         if (bx_is_api()){
-            $aItemData['event'] = $this->_oTemplate->_getPostApi($aItemData['event'], $aParams);
+            $aItemData['event'] = $this->_oTemplate->getPostApi($aItemData['event'], $aParams);
             return [bx_api_get_block('feed_item', $aItemData)];
         }
         
@@ -2860,7 +2812,7 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         if(empty($aReposted) || !is_array($aReposted))
             return [];
         
-        $aParams = array_merge($this->_oConfig->getRepostDefaults(), $aParams);
+        $aParams = array_merge($this->_oConfig->getRepostDefaults(true), $aParams);
 
         $bPerformed = $this->_oDb->isReposted($aReposted['id'], $iOwnerId, $this->getUserId());
         $bDisabled = $this->isAllowedRepost($aReposted) !== true;
@@ -2871,7 +2823,7 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
             'type' => 'reposts',
             'system' => $sType . (!empty($sAction) ? '_' . $sAction : ''),
             'object_id' => $iObjectId,
-            'params' => $aParams,
+            'params' => array_intersect_key($aParams, array_flip($this->_oConfig->getRepostParams(true))),
             'action' => [
                 'is_undo' => false,
                 'is_performed' => $bPerformed,
@@ -3724,58 +3676,6 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
         $this->onDelete($aEvent);
         return true;
     }
-    
-
-    public function addAttachLink($aValues, $sDisplay = false)
-    {
-        $CNF = &$this->_oConfig->CNF;
-
-        if(!$sDisplay)
-            $sDisplay = $this->_oConfig->getObject('form_display_attach_link_add');
-
-        $oForm = BxDolForm::getObjectInstance($this->_oConfig->getObject('form_attach_link'), $sDisplay, $this->_oTemplate);
-        if(!$oForm)
-            return array('message' => '_sys_txt_error_occured');
-
-        $oForm->aFormAttrs['method'] = BX_DOL_FORM_METHOD_SPECIFIC;
-        $oForm->aParams['csrf']['disable'] = true;
-        if(!empty($oForm->aParams['db']['submit_name'])) {
-            $sSubmitName = $oForm->aParams['db']['submit_name'];
-            if(!isset($oForm->aInputs[$sSubmitName])) {
-                if(isset($oForm->aInputs[$CNF['FIELD_CONTROLS']]))
-                    foreach($oForm->aInputs[$CNF['FIELD_CONTROLS']] as $mixedIndex => $aInput) {
-                        if(!is_numeric($mixedIndex) || empty($aInput['name']) || $aInput['name'] != $sSubmitName)
-                            continue;
-    
-                        $aValues[$sSubmitName] = $aInput['value'];
-                    }
-            }
-            else            
-                $aValues[$sSubmitName] = $oForm->aInputs[$sSubmitName]['value'];
-        }
-
-        $oForm->aInputs['url']['checker']['params']['preg'] = $this->_oConfig->getPregPattern('url');
-
-        $oForm->initChecker(array(), $aValues);
-        if(!$oForm->isSubmittedAndValid())
-            return array('message' => '_sys_txt_error_occured');
-
-        return $this->_addLink($oForm);
-    }
-
-    public function getFormAttachLink($iEventId = 0)
-    {
-        $oForm = BxDolForm::getObjectInstance($this->_oConfig->getObject('form_attach_link'), $this->_oConfig->getObject('form_display_attach_link_add'), $this->_oTemplate);
-        $oForm->aFormAttrs['action'] = BX_DOL_URL_ROOT . $this->_oConfig->getBaseUri() . 'submit_attach_link_form/';
-        $oForm->aInputs['event_id']['value'] = $iEventId;
-        $oForm->aInputs['url']['checker']['params']['preg'] = $this->_oConfig->getPregPattern('url');
-
-        $oForm->initChecker();
-        if($oForm->isSubmittedAndValid())
-            return $this->_addLink($oForm);
-
-        return array('form' => $oForm->getCode(), 'form_id' => $oForm->id);
-    }
 
     public function getFormPost($aParams = [])
     {
@@ -4072,6 +3972,8 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
             $this->_saveMedia($CNF['FIELD_FILE'], $iId, $aFileIds, $iUserId);
 
             $this->getCacheItemObject()->removeAllByPrefix($this->_oConfig->getPrefix('cache_item') . $iId);
+
+            $this->onEdit($iId);
 
             return $this->_bIsApi ? [ 'id' => $iId ] : [ 'id' => $iId ];
         }
@@ -4875,8 +4777,9 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
     {
         $CNF = &$this->_oConfig->CNF;
 
-        $aEvent = $this->_oDb->getEvents(array('browse' => 'id', 'value' => $iContentId));
-        if($this->_oConfig->isSystem($aEvent['type'], $aEvent['action'])) {
+        $aEvent = $this->_oDb->getEvents(['browse' => 'id', 'value' => $iContentId]);
+
+        if($this->_oConfig->isSystem($aEvent[$CNF['FIELD_TYPE']], $aEvent[$CNF['FIELD_ACTION']])) {
             //--- Request event's data from content module and update it in the Timeline DB.
             $this->_oTemplate->getDataCached($aEvent);
 
@@ -4925,11 +4828,36 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
          * @hook @ref hook-bx_timeline-defer_common
          */
         bx_alert($this->_oConfig->getObject('alert'), $sAction, $iContentId, $iSenderId, [
-            'source' => $this->_oConfig->getName() . '_' . $iContentId,
-            'owner_id' => $aEvent['owner_id'],
+            'source' => $aEvent[$CNF['FIELD_SOURCE']],
+            'owner_id' => $aEvent[$CNF['FIELD_OWNER_ID']],
             'object_author_id' => $iObjectAuthorId,
-            'privacy_view' => $aEvent['object_privacy_view'],
+            'privacy_view' => $aEvent[$CNF['FIELD_OBJECT_PRIVACY_VIEW']],
         ]);
+
+        /**
+         * Note. 0 is used as $iContentId to allow to subscribe on all events at once.
+         */
+        if(($oSockets = BxDolSockets::getInstance()) && $oSockets->isEnabled())
+            $oSockets->sendEvent($this->_oConfig->getSocketName(), 0, 'added', json_encode([
+                'id' => $aEvent[$CNF['FIELD_ID']],
+                'author_id' => $aEvent[$CNF['FIELD_OBJECT_OWNER_ID']],
+                'peformer_id' => $iSenderId
+            ]));
+    }
+
+    public function onEdit($iContentId)
+    {
+        $CNF = &$this->_oConfig->CNF;
+
+        $aEvent = $this->_oDb->getEvents(['browse' => 'id', 'value' => $iContentId]);
+        $iSenderId = $this->_oConfig->isSystem($aEvent[$CNF['FIELD_TYPE']], $aEvent[$CNF['FIELD_ACTION']]) ? $aEvent['owner_id'] : $aEvent['object_id'];
+
+        if(($oSockets = BxDolSockets::getInstance()) && $oSockets->isEnabled())
+            $oSockets->sendEvent($this->_oConfig->getSocketName(), 0, 'edited', json_encode([
+                'id' => $aEvent[$CNF['FIELD_ID']],
+                'author_id' => $aEvent[$CNF['FIELD_OBJECT_OWNER_ID']],
+                'peformer_id' => $iSenderId
+            ]));
     }
 
     public function onPublished($iContentId)
@@ -5261,6 +5189,13 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
              */
             bx_alert($this->_oConfig->getObject('alert'), 'delete', $aEvent[$CNF['FIELD_ID']], $iUserId);
         //--- Event -> Delete for Alerts Engine ---//
+
+        if(($oSockets = BxDolSockets::getInstance()) && $oSockets->isEnabled())
+            $oSockets->sendEvent($this->_oConfig->getSocketName(), 0, 'deleted', json_encode([
+                'id' => $aEvent[$CNF['FIELD_ID']],
+                'author_id' => $aEvent[$CNF['FIELD_OBJECT_OWNER_ID']],
+                'peformer_id' => $iUserId
+            ]));
     }
 
     public function getParams($sView = '', $sType = '', $iOwnerId = 0, $iStart = 0, $iPerPage = 0, $sFilter = BX_TIMELINE_FILTER_ALL, $aModules = array(), $iTimeline = 0)
@@ -5943,58 +5878,6 @@ class BxTimelineModule extends BxBaseModNotificationsModule implements iBxDolCon
             ]);
 
         return $aCheckResult[CHECK_ACTION_RESULT] !== CHECK_ACTION_RESULT_ALLOWED ? $aCheckResult[CHECK_ACTION_MESSAGE] : true;
-    }
-
-    protected function _addLink(&$oForm)
-    {
-        $iUserId = $this->getUserId();
-
-        $iEventId = (int)$oForm->getCleanValue('event_id');
-        $sLink = rtrim($oForm->getCleanValue('url'), '/');
-        $sHost = parse_url($sLink, PHP_URL_HOST);
-        if ($sHost && is_private_ip(gethostbyname($sHost)))
-            return array('message' => _t('_sys_txt_error_occured'));
-
-        $aMatches = array();
-        preg_match($this->_oConfig->getPregPattern('url'), $sLink, $aMatches);
-        $sLink = (empty($aMatches[2]) ? 'http://' : '') . $aMatches[0];
-
-        $aSiteInfo = bx_get_site_info($sLink, array(
-            'thumbnailUrl' => array('tag' => 'link', 'content_attr' => 'href'),
-            'OGImage' => array('name_attr' => 'property', 'name' => 'og:image'),
-        ));
-
-        $sTitle = !empty($aSiteInfo['title']) ? $aSiteInfo['title'] : $sHost;
-        $sDescription = !empty($aSiteInfo['description']) ? $aSiteInfo['description'] : '';
-
-        $sMediaUrl = '';
-        if(!empty($aSiteInfo['thumbnailUrl']))
-            $sMediaUrl = $aSiteInfo['thumbnailUrl'];
-        else if(!empty($aSiteInfo['OGImage']))
-            $sMediaUrl = $aSiteInfo['OGImage'];
-
-        $iMediaId = 0;
-        $oStorage = null;
-        if(!empty($sMediaUrl)) {
-            $oStorage = BxDolStorage::getObjectInstance($this->_oConfig->getObject('storage_photos'));
-
-            $iMediaId = $oStorage->storeFileFromUrl($sMediaUrl, true, $iUserId);
-        }
-
-        $iId = (int)$oForm->insert(array('profile_id' => $iUserId, 'media_id' => $iMediaId, 'url' => $sLink, 'title' => $sTitle, 'text' => $sDescription, 'added' => time()));
-        if(!empty($iId)) {
-            if(!empty($oStorage) && !empty($iMediaId))
-                $oStorage->afterUploadCleanup($iMediaId, $iUserId);
-
-            return array(
-                'id' => $iId, 
-                'event_id' => $iEventId, 
-                'url' => $sLink,
-                'item' => $this->_oTemplate->getAttachLinkItem($iUserId, $iId)
-            );
-        }
-
-        return array('message' => _t('_bx_timeline_txt_err_cannot_perform_action'));
     }
 
     protected function _deleteLinks($iId)

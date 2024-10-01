@@ -417,9 +417,8 @@ class BxBaseServiceAccount extends BxDol
             $sPhoneNumber = $a['phone'];
             
             $oSession = BxDolSession::getInstance();           
-            if ($sPhoneNumber != "" && $oSession->isValue(BX_ACCOUNT_SESSION_KEY_FOR_PHONE_ACTIVATEION_CODE)){
-                 $iStep = 2;
-            }
+            if ($sPhoneNumber != "" && $oSession->isValue(BX_ACCOUNT_SESSION_KEY_FOR_PHONE_ACTIVATEION_CODE))
+                $iStep = 2;
         
             if (bx_get('step'))
                 $iStep = (int)bx_get('step');
@@ -430,12 +429,14 @@ class BxBaseServiceAccount extends BxDol
                 if (!$oForm)
                     return MsgBox(_t("_sys_txt_confirm_phone_set_phone_error_occured"));
             
-                $oForm->initChecker(array('phone' => $sPhoneNumber));
+                $oForm->initChecker(['phone' => $sPhoneNumber]);
                 if ($oForm->isSubmittedAndValid()) {
-                    $oAccount->updatePhone(trim($oForm->getCleanValue('phone')));
+                    $sPhoneNumber = trim($oForm->getCleanValue('phone'));
+                    $oAccount->updatePhone($sPhoneNumber);
+
                     $sActivationCode = rand(1000, 9999);
                     $sActivationText =_t('_sys_txt_confirm_phone_sms_text', $sActivationCode);
-                    $ret = null;
+                    $mixedResult = null;
                     /**
                      * @hooks
                      * @hookdef hook-account-before_confirm_phone_send_sms 'account', 'before_confirm_phone_send_sms' - hook in confirm phone 
@@ -449,14 +450,14 @@ class BxBaseServiceAccount extends BxDol
                      *      - `override_result` - [mixed] by ref, can be object, can be overridden in hook processing
                      * @hook @ref hook-account-before_confirm_phone_send_sms
                      */
-                    bx_alert('account', 'before_confirm_phone_send_sms', $oAccount->id(), bx_get_logged_profile_id(), array('phone_number' => $sPhoneNumber, 'sms_text' => $sActivationText, 'override_result' => &$ret));
-                    if ($ret === null) 
-                    {
-                        $oTwilio = BxDolTwilio::getInstance();
-                        if(!$oTwilio->sendSms($sPhoneNumber,  $sActivationText)){
-                            return MsgBox(_t("_sys_txt_confirm_phone_send_sms_error_occured"));
-                        }
-                    }
+                    bx_alert('account', 'before_confirm_phone_send_sms', $oAccount->id(), bx_get_logged_profile_id(), [
+                        'phone_number' => $sPhoneNumber, 
+                        'sms_text' => $sActivationText, 
+                        'override_result' => &$mixedResult
+                    ]);
+
+                    if ($mixedResult === null && !BxDolTwilio::getInstance()->sendSms($sPhoneNumber,  $sActivationText))
+                        return MsgBox(_t("_sys_txt_confirm_phone_send_sms_error_occured"));
 
                     $oSession->setValue(BX_ACCOUNT_SESSION_KEY_FOR_PHONE_ACTIVATEION_CODE, $sActivationCode);
                     header('Location: ' . bx_absolute_url(BxDolPermalinks::getInstance()->permalink('page.php?i=confirm-phone')));
@@ -835,14 +836,12 @@ class BxBaseServiceAccount extends BxDol
      */
     public function generateUserNewPwd($iAccountId)
     {
-        $sPwd = genRndPwd(8, false);
+        $sPassword = genRndPwd(8, false);
         $sSalt = genRndSalt();
-        $sPasswordHash = encryptUserPwd($sPwd, $sSalt);
-        
-        $oAccount = BxDolAccount::getInstance($iAccountId);
-        $iPasswordExpired = $oAccount->getPasswordExpiredDateByAccount($iAccountId);
-        
-        $this->_oAccountQuery->updatePassword($sPasswordHash, $sSalt, $iAccountId, $iPasswordExpired);
+        $sPasswordHash = encryptUserPwd($sPassword, $sSalt);
+
+        $this->_oAccountQuery->logPassword($iAccountId);
+        $this->_oAccountQuery->updatePassword($sPasswordHash, $sSalt, $iAccountId);
 
         /**
          * @hooks
@@ -855,9 +854,11 @@ class BxBaseServiceAccount extends BxDol
          *      - `action` - [string] can be forgot_password/change_password or $sDisplayName  (display name for current form)
          * @hook @ref hook-account-edited
          */
-        bx_alert('account', 'edited', $iAccountId, $iAccountId, array('action' => 'forgot_password'));
+        bx_alert('account', 'edited', $iAccountId, $iAccountId, [
+            'action' => 'forgot_password'
+        ]);
 
-        return $sPwd;
+        return $sPassword;
     }
 
     protected function _confirmEmail($sKey)
@@ -885,7 +886,7 @@ class BxBaseServiceAccount extends BxDol
             return _t("_sys_txt_confirm_email_error_occured");
 
         // login to user's account automatically
-        bx_login($aData['account_id']);
+        bx_login($aData['account_id'], bx_is_remember_me());
 
         return (int)$aData['account_id'];
     }
